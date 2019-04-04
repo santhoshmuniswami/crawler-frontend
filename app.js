@@ -30,6 +30,22 @@ function validateUrl(value) {
   return /^(http[s]?:\/\/){0,1}(www\.){0,1}[a-zA-Z0-9\.\-]+\.[a-zA-Z]{2,5}[\.]{0,1}/.test(value);
 }
 
+
+function createHTML(json, isArray){
+  var html = '<ul>';
+  for(var key in json){
+    if(typeof json[key] == 'object'){
+
+      html += '<li>' + (!isArray ? '<strong>'+ key +'</strong>' : '') + '</li>' + createHTML(json[key], (json[key] instanceof Array ? 1 : 0));
+    } else {
+      html += '<li>'+ json[key] +'</li>';
+    }
+  }
+  return html+'</ul>';
+
+}
+
+
 app.post('/sitemap',function(req,res){
   console.log("Sending request to API" + req.body.url);
   var request_url = req.body.url;
@@ -73,15 +89,44 @@ app.post('/sitemap',function(req,res){
           properties += chunk;
           console.log("******************** Result ******************");
           console.log(properties);
-          properties = JSON.stringify(properties);
-          // properties=JSON.parse(properties);
-          properties = JSON.parse(properties);
         });
         responseapi.on('end', function (err, result) {
           if (!err) {
-            console.log("Properties" + properties);
-            res.write(properties);
-            res.end();
+            // console.log("Properties" + properties);
+            // res.write(properties);
+            // res.end();
+
+
+
+            var data = JSON.parse(properties);
+
+            var output = {};
+            var current;
+            // console.log(data[0])
+
+            for(var a=0; a<data.length; a++) {
+              var s = data[a].split('/');
+              // console.log("S is==="+s)
+              current = output;
+              for(var i=0; i<s.length; i++) {
+                // console.log("S[i]=="+s[i])
+                if(s[i] != '') {
+                  // console.log("current[s[i]]==="+JSON.stringify(current[s[i]]))
+                  if(current[s[i]] == null)
+                    current[s[i]] = {};
+                  current = current[s[i]];
+                  // console.log("CUrrent & output==="+JSON.stringify(current)+",,,,,,,,,,,,,,,,,,"+JSON.stringify(output))
+                }
+              }
+            }
+
+          console.log(output)
+
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.write(createHTML(output,false));
+          res.end();
+
+
           } else {
             console.log("Error: Server is not responding at this point in time");
             res.write("Error: Server is not responding at this point in time")
