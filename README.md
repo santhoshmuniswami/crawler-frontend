@@ -11,7 +11,7 @@ To install all the node modules required to run this project.
 Runs the app in the development mode.<br>
 Open [http://localhost:9000](http://localhost:9000) to view it in the browser.
 
-### Code Splitting
+### Backend services
 
 Backend for this code is in another repository 
 
