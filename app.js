@@ -5,13 +5,19 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 
 var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
 var url = require('url');
 var host = ( 'localhost');
 var port = ( 9000);
 var http=require('http');
 
 var app = express();
+
+//Logger setup
+var fs = require('fs');
+var util = require('util');
+var log_file = fs.createWriteStream(__dirname + '/log/debug-'+Date.now()+'.log', {flags : 'w'});
+var log_stdout = process.stdout;
+
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -24,13 +30,22 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded());
 
+
+console.log = function(d) { //
+  log_file.write(util.format(d) + '\n');
+  log_stdout.write(util.format(d) + '\n');
+};
+
+//Routing home page to Index.html
 app.use('/', indexRouter);
 //app.use('/users', usersRouter);
+
+//Function declaration to validate requested URL
 function validateUrl(value) {
   return /^(http[s]?:\/\/){0,1}(www\.){0,1}[a-zA-Z0-9\.\-]+\.[a-zA-Z]{2,5}[\.]{0,1}/.test(value);
 }
 
-
+//Function declaration to build sitemap
 function createHTML(json, isArray){
   var html = '<ul>';
   for(var key in json){
@@ -45,22 +60,27 @@ function createHTML(json, isArray){
 
 }
 
-
+//Receives POST requests and makes API call to backend service running at port 5000
 app.post('/sitemap',function(req,res){
-  console.log("Sending request to API" + req.body.url);
+  var mydate = new Date();
+  var currentdatetime = mydate.toDateString()+" "+mydate.toTimeString();
   var request_url = req.body.url;
-  console.log("Received data"+request_url)
+
+  console.log("REQUEST: received at "+currentdatetime +" => " + req.body.url );
+
+  //Check if the URL has null value
   if (request_url === null || request_url === '') {
-    console.log("Request contains null value");
-    res.write("Please request some URL")
+    res.writeHead(400, { 'Content-Type': 'text/html' });
+    console.log("ERROR: Request at "+currentdatetime +" => "+request_url+": contains null value");
+    res.write("Please enter the URL")
     res.end()
   }
   else{
-    console.log("Entering functionality")
     validation_res=validateUrl(request_url);
     if(!validation_res){
-      console.log("Please enter valid URL");
-      res.write("Please enter valid URL")
+      console.log("ERROR: Request at "+currentdatetime +" => "+request_url+": URL Invalid");
+      res.writeHead(400, { 'Content-Type': 'text/html' });
+      res.write("Please enter valid URL!")
       res.end()
     }
     else {
@@ -82,45 +102,33 @@ app.post('/sitemap',function(req,res){
       // console.log(options)
 
       var requestapi = http.request(options, function (responseapi) {
-        console.log("Sending request")
         // res.setEncoding('utf8');
         responseapi.on('data', function (chunk) {
-          console.log("body: " + chunk);
+
           properties += chunk;
-          console.log("******************** Result ******************");
-          console.log(properties);
+          // console.log("Data receiving"+properties)
         });
         responseapi.on('end', function (err, result) {
           if (!err) {
-            // console.log("Properties" + properties);
-            // res.write(properties);
-            // res.end();
-
 
 
             var data = JSON.parse(properties);
 
             var output = {};
             var current;
-            // console.log(data[0])
 
             for(var a=0; a<data.length; a++) {
               var s = data[a].split('/');
-              // console.log("S is==="+s)
               current = output;
               for(var i=0; i<s.length; i++) {
-                // console.log("S[i]=="+s[i])
                 if(s[i] != '') {
-                  // console.log("current[s[i]]==="+JSON.stringify(current[s[i]]))
                   if(current[s[i]] == null)
                     current[s[i]] = {};
                   current = current[s[i]];
-                  // console.log("CUrrent & output==="+JSON.stringify(current)+",,,,,,,,,,,,,,,,,,"+JSON.stringify(output))
                 }
               }
             }
-
-          console.log(output)
+          console.log("SUCCESS: Request at "+currentdatetime +" => "+request_url+": Responded successfully");
 
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.write(createHTML(output,false));
@@ -128,8 +136,9 @@ app.post('/sitemap',function(req,res){
 
 
           } else {
-            console.log("Error: Server is not responding at this point in time");
-            res.write("Error: Server is not responding at this point in time")
+            console.log("ERROR: Request at "+currentdatetime +" => "+request_url+": Internal Server Error");
+            res.writeHead(503, { 'Content-Type': 'text/html' });
+            res.write("Internal Server Error! Please try in sometime!")
             res.end()
           }
 
@@ -137,7 +146,8 @@ app.post('/sitemap',function(req,res){
       })
           .on('error', function (err) {
             console.log('error ' + err)
-            res.write("Error fetching data" + err)
+            res.writeHead(503, { 'Content-Type': 'text/html' });
+            res.write("Internal Server Error! Please try in sometime!")
             res.end();
           });
       requestapi.write(data);
@@ -146,10 +156,21 @@ app.post('/sitemap',function(req,res){
   }
 });
 
+
+app.get('/*', function(req, res) {
+  res.writeHead(503, { 'Content-Type': 'text/html' });
+  res.write("ERROR: Invalid request!")
+  res.end();
+});
+
+/*
+
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
   next(createError(404));
 });
+*/
+/*
 
 // error handler
 app.use(function(err, req, res, next) {
@@ -161,6 +182,7 @@ app.use(function(err, req, res, next) {
   res.status(err.status || 500);
   res.render('error');
 });
+*/
 
 app.listen(port, host);
 console.log('App started on port ' + port);
